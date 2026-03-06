@@ -1,0 +1,62 @@
+name: 'Verify AI Productivity Hub Next.js Bundle'
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Create fresh Next.js app
+        run: |
+          mkdir temp-next-app
+          cd temp-next-app
+          npx create-next-app@latest . --ts --eslint --tailwind --src-dir --app --import-alias "@/*" --use-npm --no-git
+
+      - name: Download and unzip parity bundle
+        run: |
+          curl -L "https://ljnung6dfgwtqv5w.public.blob.vercel-storage.com/5f50956a-2dfd-4249-b01d-423edec9d8a8/233ba8f9-8f07-4766-937d-823cab38101c/aiphub-nextjs-parity-v2-1772772668669.zip" -o bundle.zip
+          unzip bundle.zip -d bundle-contents
+
+      - name: Copy bundle contents into Next.js project
+        run: |
+          cp -r bundle-contents/* temp-next-app/
+
+      - name: Install dependencies
+        run: |
+          cd temp-next-app
+          npm install sanity @sanity/client groq @portabletext/react
+
+      - name: Build project
+        run: |
+          cd temp-next-app
+          npm run build
+
+      - name: Verify paths
+        run: |
+          cd temp-next-app
+          npm run start &
+          sleep 15
+          PATHS=(
+            "/"
+            "/tools/"
+            "/blog/"
+            "/robots.txt"
+            "/sitemap.xml"
+            "/sitemap_index.xml"
+            "/post-sitemap.xml"
+            "/page-sitemap.xml"
+            "/terms-2/"
+            "/go/chatgpt/"
+          )
+          for path in "${PATHS[@]}"; do
+            status_code=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:3000$path)
+            echo "Path $path: $status_code"
+          done
